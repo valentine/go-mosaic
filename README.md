@@ -19,3 +19,11 @@ This was written as an entry for [Go Challenge 3](http://golang-challenge.com/go
 **source**: Directory for source images (defaults to **photos/**)
 
 **tile**: Size of tiles in output image (higher numbers process faster, but images will have less resolution) (defaults to **16**)
+
+## Example
+
+### Input
+![input image](https://github.com/Valentine/go-mosaic/raw/master/example/input-small.jpg "Input Image")
+
+### Output
+![input image](https://github.com/Valentine/go-mosaic/raw/master/example/output-small.jpg "Output Image")
