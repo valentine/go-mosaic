@@ -50,15 +50,9 @@ type colorRGBA struct {
 	colorA int
 }
 
-type sourceFile struct {
-	sourceIndex int
-	sourceName  string
-	sourceData  image.Image
-	colorRGBA
-}
-
 type imageLookup struct {
 	sourceName string
+	sourceData image.Image
 	colorRGBA
 }
 
@@ -69,7 +63,7 @@ type imageTile struct {
 }
 
 type tileDistance struct {
-	sourceName string
+	sourceData image.Image
 	distance   float64
 }
 
@@ -125,9 +119,10 @@ func calcDir() (lookup []imageLookup) {
 		}
 
 		tileSizeU := uint(tileSize)
-		imgSmall := resize.Thumbnail(tileSizeU, tileSizeU, imgData, resize.NearestNeighbor)
+		var smallTileSize = tileSizeU * 2
+		imgSmall := resize.Thumbnail(smallTileSize, smallTileSize, imgData, resize.NearestNeighbor)
 		imgColor := averageColor(imgSmall)
-		fileID := imageLookup{file.Name(), imgColor}
+		fileID := imageLookup{file.Name(), imgSmall, imgColor}
 		lookupTable = append(lookupTable, fileID)
 		fmt.Printf("Processing %s ... ", file.Name())
 	}
@@ -152,7 +147,6 @@ func tileImage(lookup []imageLookup) {
 	imgHeight := bounds.Max.Y
 	maxTilesX := int(math.Ceil(float64(imgWidth) / float64(tileSize)))
 	maxTilesY := int(math.Ceil(float64(imgHeight) / float64(tileSize)))
-	var tileChoice []tileReplacement
 	newCanvas := image.NewRGBA(image.Rect(0, 0, imgWidth, imgHeight))
 
 	for tileY := 0; tileY < maxTilesY; tileY++ {
@@ -166,7 +160,7 @@ func tileImage(lookup []imageLookup) {
 
 			for l := 0; l < len(lookup); l++ {
 				colorDist := measureColorDist(tileColor.colorR, tileColor.colorG, tileColor.colorB, lookup[l].colorR, lookup[l].colorG, lookup[l].colorB)
-				cdSlice := tileDistance{lookup[l].sourceName, colorDist}
+				cdSlice := tileDistance{lookup[l].sourceData, colorDist}
 				distSlice = append(distSlice, cdSlice)
 			}
 
@@ -180,11 +174,9 @@ func tileImage(lookup []imageLookup) {
 				}
 			}
 
-			closestTile := tileReplacement{tileX, tileY, distSlice[idx].sourceName}
-			tileChoice = append(tileChoice, closestTile)
 			fmt.Printf("Now processing tile %d:%d ...", tileX, tileY)
-			rpcSmall := replaceTile(closestTile)
-			draw.Draw(newCanvas, image.Rectangle{image.Point{tileXZero, tileYZero}, image.Point{imgWidth, imgHeight}}, rpcSmall, image.Point{0, 0}, draw.Src)
+
+			draw.Draw(newCanvas, image.Rectangle{image.Point{tileXZero, tileYZero}, image.Point{imgWidth, imgHeight}}, distSlice[idx].sourceData, image.Point{0, 0}, draw.Src)
 		}
 	}
 	writeToJPEG(newCanvas)
@@ -223,25 +215,6 @@ func measureColorDist(tileRed int, tileGreen int, tileBlue int, poolRed int, poo
 	return totalDist
 }
 
-func replaceTile(closestTile tileReplacement) (replaceSmall image.Image) {
-
-	rpcFile, openErr := os.Open(sourceDir + "/" + closestTile.sourceName)
-	if openErr != nil {
-		log.Println("Source File (Open): ", openErr)
-	}
-	defer rpcFile.Close()
-
-	rpcData, _, decodeErr := image.Decode(rpcFile)
-	if decodeErr != nil {
-		log.Println("Source File (Decode Tile): ", decodeErr)
-	}
-
-	tileSizeU := uint(tileSize)
-	var smallTileSize = tileSizeU * 2
-	rpcSmall := resize.Thumbnail(smallTileSize, smallTileSize, rpcData, resize.NearestNeighbor)
-	return rpcSmall
-}
-
 func writeToJPEG(imageData image.Image) {
 
 	out, osCreateErr := os.Create(outputImage)
@@ -267,5 +240,5 @@ func main() {
 	lookup := calcDir()
 	tileImage(lookup)
 	elapsed := time.Since(start)
-	fmt.Printf("\nHurray! Your mosaic took %d minutes to create!", elapsed/60000000000)
+	fmt.Printf("\nHurray! Your mosaic took %d seconds to create!", elapsed/1000000000)
 }
